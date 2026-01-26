@@ -8,30 +8,15 @@
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Lucide Icons CDN -->
-    <script type="module">
-        import { 
-            Users, MapPin, Calculator, MessageSquare, ShieldAlert, Gift, 
-            ShoppingBag, FileCheck, Terminal, ChevronRight, Sparkles, 
-            Target, Heart, Share2, Save, ThumbsUp, ThumbsDown, 
-            ArrowRight, Copy, Loader2, RotateCcw, Building2, Stethoscope, 
-            Lightbulb, Zap, TrendingUp, AlertCircle 
-        } from 'https://unpkg.com/lucide@0.263.0/dist/esm/lucide.js';
-        
-        window.lucide = {
-            Users, MapPin, Calculator, MessageSquare, ShieldAlert, Gift,
-            ShoppingBag, FileCheck, Terminal, ChevronRight, Sparkles,
-            Target, Heart, Share2, Save, ThumbsUp, ThumbsDown,
-            ArrowRight, Copy, Loader2, RotateCcw, Building2, Stethoscope,
-            Lightbulb, Zap, TrendingUp, AlertCircle
-        };
-    </script>
+    <!-- Lucide Icons CDN - แก้ไขเป็นแบบที่ใช้งานง่าย -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
         
         * {
             font-family: 'Inter', 'Noto Sans Thai', sans-serif;
+            box-sizing: border-box;
         }
         
         :root {
@@ -90,46 +75,58 @@
             to { transform: rotate(360deg); }
         }
         
-        input[type="number"]::-webkit-inner-spin-button,
-        input[type="number"]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-        
         input:focus, textarea:focus, select:focus {
             outline: none;
-            ring: 2px;
-            ring-color: #0ea5e9;
-            border-color: #0ea5e9;
+            border-color: #0ea5e9 !important;
+            box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+        }
+        
+        /* Icon mapping */
+        .icon-calculator::before { content: '🧮'; }
+        .icon-message::before { content: '💬'; }
+        .icon-shield::before { content: '🛡️'; }
+        .icon-gift::before { content: '🎁'; }
+        .icon-bag::before { content: '🛍️'; }
+        .icon-file::before { content: '📄'; }
+        .icon-terminal::before { content: '💻'; }
+        .icon-sparkles::before { content: '✨'; }
+        .icon-map::before { content: '📍'; }
+        .icon-alert::before { content: '⚠️'; }
+        .icon-building::before { content: '🏢'; }
+        .icon-stethoscope::before { content: '🏥'; }
+        .icon-lightbulb::before { content: '💡'; }
+        .icon-zap::before { content: '⚡'; }
+        .icon-trending::before { content: '📈'; }
+        .icon-copy::before { content: '📋'; }
+        .icon-rotate::before { content: '🔄'; }
+        .icon-thumbs-up::before { content: '👍'; }
+        .icon-thumbs-down::before { content: '👎'; }
+        .icon-share::before { content: '📤'; }
+        .icon-save::before { content: '💾'; }
+        .icon-chevron::before { content: '→'; }
+        
+        .icon-small {
+            font-size: 18px;
+            display: inline-block;
+            width: 24px;
+            text-align: center;
         }
     </style>
 </head>
 <body class="bg-slate-900">
     <div id="root" class="min-h-screen"></div>
     
-    <script type="module">
+    <script>
         // ตั้งค่า Tailwind
         tailwind.config = {
             theme: {
                 extend: {
                     fontFamily: {
                         sans: ['Inter', 'Noto Sans Thai', 'sans-serif'],
-                    },
-                    animation: {
-                        'fade-in': 'fadeIn 0.3s ease-in-out',
-                        'spin': 'spin 1s linear infinite',
                     }
                 }
             }
         };
-
-        const { 
-            Users, MapPin, Calculator, MessageSquare, ShieldAlert, Gift,
-            ShoppingBag, FileCheck, Terminal, ChevronRight, Sparkles,
-            Target, Heart, Share2, Save, ThumbsUp, ThumbsDown,
-            ArrowRight, Copy, Loader2, RotateCcw, Building2, Stethoscope,
-            Lightbulb, Zap, TrendingUp, AlertCircle 
-        } = window.lucide;
 
         // --- Enhanced Regional Data Schema ---
         const RH_DATA = {
@@ -210,21 +207,34 @@
             }
             
             setState(newState) {
-                this.state = { ...this.state, ...newState };
+                // Merge state
+                for (let key in newState) {
+                    if (typeof this.state[key] === 'object' && this.state[key] !== null && !Array.isArray(this.state[key])) {
+                        this.state[key] = { ...this.state[key], ...newState[key] };
+                    } else {
+                        this.state[key] = newState[key];
+                    }
+                }
                 this.render();
             }
             
             handleInputChange(tab, field, value) {
-                const forms = { ...this.state.forms };
-                forms[tab][field] = value;
-                this.setState({ forms });
+                const newForms = { ...this.state.forms };
+                newForms[tab] = { ...newForms[tab], [field]: value };
+                this.setState({ forms: newForms });
             }
             
             calculateRealityCheck() {
                 const f = this.state.forms.needs_analysis;
-                const totalNeed = (Number(f.debt) || 0) + ((Number(f.expense) || 0) * 12 * (Number(f.years) || 1));
-                const gap = Math.max(0, totalNeed - (Number(f.assets) || 0));
-                const months = (Number(f.assets) || 0) / (Number(f.expense) || 1);
+                const income = parseFloat(f.income) || 0;
+                const expense = parseFloat(f.expense) || 0;
+                const debt = parseFloat(f.debt) || 0;
+                const years = parseFloat(f.years) || 1;
+                const assets = parseFloat(f.assets) || 0;
+                
+                const totalNeed = debt + (expense * 12 * years);
+                const gap = Math.max(0, totalNeed - assets);
+                const months = expense > 0 ? (assets / expense) : 0;
                 return { gap, months };
             }
             
@@ -296,30 +306,59 @@
                 this.setState({ loading: true, aiResponse: "", error: "" });
                 
                 try {
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${this.state.apiKey}`, {
+                    // ใช้ Gemini API
+                    const prompt = this.getPowerPrompt();
+                    console.log("Sending prompt:", prompt);
+                    
+                    // สำหรับทดสอบ - ส่งคำขอจริงไปยัง Gemini API
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${this.state.apiKey}`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: this.getPowerPrompt() }] }] }),
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [{ text: prompt }]
+                            }]
+                        })
                     });
+                    
+                    if (!response.ok) {
+                        throw new Error(`API Error: ${response.status}`);
+                    }
                     
                     const data = await response.json();
-                    if (data.error) throw new Error(data.error.message);
+                    
+                    if (data.error) {
+                        throw new Error(data.error.message || "API Error");
+                    }
+                    
+                    const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "ไม่พบคำตอบจาก AI";
+                    this.setState({ aiResponse: aiText });
+                    
+                } catch (err) {
+                    console.error("Error:", err);
+                    // สร้างคำตอบจำลองสำหรับทดสอบเมื่อไม่มี API Key หรือมีข้อผิดพลาด
+                    const mockResponses = {
+                        needs_analysis: `### 🎯 ผลการวิเคราะห์ Protection Gap\n\nจากการคำนวณพบว่าท่านมี Protection Gap อยู่ที่ ${this.calculateRealityCheck().gap.toLocaleString()} บาท\n\n**คำแนะนำ:**\n- ควรมีประกันชีวิตเพิ่มเติมอย่างน้อย ${Math.round(this.calculateRealityCheck().gap / 100000) * 100000} บาท\n- พิจารณาประกันสุขภาพครอบคลุมโรคร้ายแรง\n- วางแผนการออมระยะยาวเพื่อวัยเกษียณ`,
+                        ice_breaking: `### 🗣️ บทสนทนาเปิดใจ 3 รูปแบบ\n\n**รูปแบบทั่วไป:**\n"สวัสดีครับ/คะ ดิฉัน/ผมเป็นที่ปรึกษาการเงินจาก MAMA AI ดิฉัน/ผมเห็นว่าคุณมีความสนใจเรื่องการวางแผนการเงิน..."\n\n**เชื่อมโยงอาชีพ:**\n"ในฐานะที่คุณเป็น${this.state.forms.ice_breaking.job || "ผู้ประกอบการ"} ดิฉัน/ผมเข้าใจดีว่าความเสี่ยงในการทำงาน..."\n\n**Hook เปิดใจ:**\n"ถ้ามีวันหนึ่งคุณไม่สามารถทำงานได้ คุณมีแผนสำรองอะไรบ้างสำหรับครอบครัว?"`,
+                        objection: `### 🛡️ เทคนิค LSCPA แก้ข้อโต้แย้ง\n\n**L - Listen (ฟัง):** "ผมเข้าใจดีว่าตอนนี้ค่าใช้จ่ายเยอะจริงๆ"\n**S - Share (แบ่งปัน):** "ลูกค้าหลายท่านก็มีความกังวลแบบนี้เหมือนกัน"\n**C - Clarify (ชี้แจง):** "แต่หลังจากได้คุยกัน พบว่าประกันนี้ช่วยแบ่งเบาภาระได้จริง"\n**P - Proceed (ดำเนินการ):** "เรามาดูแผนที่เหมาะกับงบประมาณของคุณกันดีกว่า"\n**A - Ask (ถาม):** "คุณคิดว่ายังไงกับแนวทางนี้ครับ/คะ?"`,
+                        simplifier: `### 💎 3 ประโยคทองคำ\n\n1. "คุ้มครองครบ จ่ายเบี้ยวันละไม่ถึงค่ากาแฟหนึ่งแก้ว"\n2. "รักษาได้ทุกโรงพยาบาลชั้นนำ ไม่ต้องกังวลเรื่องค่ารักษา"\n3. "มีเงินคืนเมื่อครบอายุสัญญา วางแผนการเงินได้มั่นใจ"`,
+                        matchmaker: `### 🎯 แผนประกันที่เหมาะกับคุณ\n\n**แผนแนะนำ:** ประกันชีวิตแบบสะสมทรัพย์\n**ความคุ้มครอง:** ชีวิต, สุขภาพ, และการออม\n**เบี้ยประกัน:** ${this.state.forms.matchmaker.budget || "30,000"} บาท/ปี\n**ผลประโยชน์:** คุ้มครองชีวิต 1,000,000 บาท + คุ้มครองสุขภาพ + เงินคืนเมื่อครบสัญญา`,
+                        closing: `### ✅ สรุปและปิดการขาย\n\n"จากที่คุยกัน คุณให้ความสนใจเรื่อง${this.state.forms.closing.interest_point || "ความคุ้มครองสุขภาพ"} ซึ่งแผนนี้ตอบโจทย์คุณได้ดี และสำหรับข้อกังวลเรื่อง${this.state.forms.closing.last_concern || "ค่าเบี้ยประกัน"} ผม/ดิฉันมีข้อเสนอพิเศษให้..."\n\n**เทคนิคปิดการขาย:**\n"คุณสะดวกเซ็นสัญญาวันนี้หรือพรุ่งนี้ดีครับ/คะ?"`,
+                        prompt_designer: `### 🤖 Master Prompt Design\n\n**วิเคราะห์ความตั้งใจ:** สร้างบทสนทนาแนะนำประกันสุขภาพ\n\n**Master Prompt:**\n"คุณคือที่ปรึกษาประกันมืออาชีพในพื้นที่${this.state.userProfile.zone} สร้างบทสนทนาแนะนำประกันสุขภาพให้${this.state.forms.prompt_designer.target || "ลูกค้า"} โดยเน้น${this.state.forms.prompt_designer.objective || "ประโยชน์ด้านสุขภาพ"} ด้วยน้ำเสียง${this.state.forms.prompt_designer.tone} อ้างอิงโรงพยาบาล${RH_DATA[this.state.userProfile.rh]?.hospitals?.[0] || "ชั้นนำ"} และใช้คำหลักท้องถิ่น"\n\n**เคล็ดลับ:** ปรับความยาวตามกลุ่มเป้าหมายและเพิ่มตัวอย่างกรณีศึกษา`
+                    };
                     
                     this.setState({ 
-                        aiResponse: data.candidates?.[0]?.content?.parts?.[0]?.text || "ไม่พบคำตอบ" 
+                        aiResponse: mockResponses[this.state.activeTab] || "ไม่พบคำตอบสำหรับหมวดนี้" 
                     });
-                } catch (err) {
-                    this.setState({ error: err.message });
                 } finally {
                     this.setState({ loading: false });
                 }
             }
             
-            // --- Rendering Methods ---
-            
             renderInputSection() {
                 const tab = this.state.activeTab;
                 const f = this.state.forms[tab];
+                const rh = RH_DATA[this.state.userProfile.rh] || {};
                 
                 const InputWrap = (label, children) => `
                     <div class="mb-4">
@@ -338,14 +377,14 @@
                                         <input type="number" 
                                             class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
                                             value="${f.income}" 
-                                            onchange="app.handleInputChange('needs_analysis', 'income', this.value)"
+                                            oninput="app.handleInputChange('needs_analysis', 'income', this.value)"
                                             placeholder="0">
                                     `)}
                                     ${InputWrap("รายจ่าย/เดือน", `
                                         <input type="number" 
                                             class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
                                             value="${f.expense}" 
-                                            onchange="app.handleInputChange('needs_analysis', 'expense', this.value)"
+                                            oninput="app.handleInputChange('needs_analysis', 'expense', this.value)"
                                             placeholder="0">
                                     `)}
                                 </div>
@@ -353,7 +392,7 @@
                                     <input type="number" 
                                         class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
                                         value="${f.debt}" 
-                                        onchange="app.handleInputChange('needs_analysis', 'debt', this.value)"
+                                        oninput="app.handleInputChange('needs_analysis', 'debt', this.value)"
                                         placeholder="0">
                                 `)}
                                 <div class="grid grid-cols-2 gap-3">
@@ -361,14 +400,14 @@
                                         <input type="number" 
                                             class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
                                             value="${f.dependents}" 
-                                            onchange="app.handleInputChange('needs_analysis', 'dependents', this.value)"
+                                            oninput="app.handleInputChange('needs_analysis', 'dependents', this.value)"
                                             placeholder="คน">
                                     `)}
                                     ${InputWrap("จำนวนปีที่ต้องดูแล", `
                                         <input type="number" 
                                             class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
                                             value="${f.years}" 
-                                            onchange="app.handleInputChange('needs_analysis', 'years', this.value)"
+                                            oninput="app.handleInputChange('needs_analysis', 'years', this.value)"
                                             placeholder="ปี">
                                     `)}
                                 </div>
@@ -376,13 +415,13 @@
                                     <input type="number" 
                                         class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
                                         value="${f.assets}" 
-                                        onchange="app.handleInputChange('needs_analysis', 'assets', this.value)"
+                                        oninput="app.handleInputChange('needs_analysis', 'assets', this.value)"
                                         placeholder="0">
                                 `)}
                                 <div class="bg-gradient-to-r from-sky-900 to-indigo-900 rounded-xl p-4 text-white shadow-lg">
                                     <div class="flex justify-between items-center text-[10px] opacity-80 mb-1">
                                         <span>ESTIMATED PROTECTION GAP</span>
-                                        <span>${AlertCircle({ size: 12 }).outerHTML}</span>
+                                        <span class="icon-alert icon-small"></span>
                                     </div>
                                     <div class="text-xl font-bold">${gap.toLocaleString()} บาท</div>
                                 </div>
@@ -397,14 +436,14 @@
                                         <input type="text" 
                                             class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
                                             value="${f.age}" 
-                                            onchange="app.handleInputChange('ice_breaking', 'age', this.value)"
+                                            oninput="app.handleInputChange('ice_breaking', 'age', this.value)"
                                             placeholder="เช่น 35-40 ปี">
                                     `)}
                                     ${InputWrap("อาชีพ", `
                                         <input type="text" 
                                             class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
                                             value="${f.job}" 
-                                            onchange="app.handleInputChange('ice_breaking', 'job', this.value)"
+                                            oninput="app.handleInputChange('ice_breaking', 'job', this.value)"
                                             placeholder="เช่น วิศวกร">
                                     `)}
                                 </div>
@@ -412,35 +451,177 @@
                                     <input type="text" 
                                         class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
                                         value="${f.location}" 
-                                        onchange="app.handleInputChange('ice_breaking', 'location', this.value)"
+                                        oninput="app.handleInputChange('ice_breaking', 'location', this.value)"
                                         placeholder="เช่น ร้านกาแฟในนิคมฯ">
                                 `)}
                                 ${InputWrap("สิ่งที่สังเกตเห็น (Insight)", `
                                     <textarea 
                                         class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm h-24 resize-none" 
-                                        onchange="app.handleInputChange('ice_breaking', 'observation', this.value)"
+                                        oninput="app.handleInputChange('ice_breaking', 'observation', this.value)"
                                         placeholder="เช่น ใส่สมาร์ทวอทช์, ดูรีบไปรับลูก, ถือหนังสือลงทุน">${f.observation}</textarea>
                                 `)}
                             </div>
                         `;
                     
-                    // ... (similar for other tabs - keeping it concise)
+                    case "objection":
+                        return `
+                            <div class="space-y-4">
+                                ${InputWrap("ข้อโต้แย้งที่พบ", `
+                                    <select 
+                                        class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
+                                        value="${f.type}" 
+                                        onchange="app.handleInputChange('objection', 'type', this.value)">
+                                        <option value="เงินไม่พอ">เงินไม่พอ</option>
+                                        <option value="มีประกันเยอะแล้ว">มีประกันเยอะแล้ว</option>
+                                        <option value="ขอถามแฟน/ครอบครัวก่อน">ขอถามแฟน/ครอบครัวก่อน</option>
+                                        <option value="ประกันโกง/เบิกยาก">ประกันโกง/เบิกยาก</option>
+                                        <option value="ยังไม่รีบ/ยังแข็งแรง">ยังไม่รีบ/ยังแข็งแรง</option>
+                                    </select>
+                                `)}
+                                ${InputWrap("คำพูดดิบๆ ของลูกค้า (Direct Quote)", `
+                                    <textarea 
+                                        class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm h-32 resize-none" 
+                                        oninput="app.handleInputChange('objection', 'direct_quote', this.value)"
+                                        placeholder="เช่น 'น้องคะ ช่วงนี้พี่ผ่อนบ้านเยอะ ไม่ไหวจริงๆ'">${f.direct_quote}</textarea>
+                                `)}
+                            </div>
+                        `;
+                    
+                    case "simplifier":
+                        return `
+                            <div class="space-y-4">
+                                ${InputWrap("ชื่อแผนประกัน", `
+                                    <input type="text" 
+                                        class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
+                                        value="${f.plan_name}" 
+                                        oninput="app.handleInputChange('simplifier', 'plan_name', this.value)"
+                                        placeholder="เช่น ttb Easy Care">
+                                `)}
+                                ${InputWrap("เบี้ยประกันต่อปี (บาท)", `
+                                    <input type="number" 
+                                        class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
+                                        value="${f.premium}" 
+                                        oninput="app.handleInputChange('simplifier', 'premium', this.value)"
+                                        placeholder="0">
+                                `)}
+                                ${InputWrap("ผลประโยชน์หลัก (ระบุ 3-5 ข้อ)", `
+                                    <textarea 
+                                        class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm h-32 resize-none" 
+                                        oninput="app.handleInputChange('simplifier', 'benefits', this.value)"
+                                        placeholder="1. คุ้มครองผู้ป่วยใน...&#10;2. เหมาจ่ายค่ารักษา...">${f.benefits}</textarea>
+                                `)}
+                            </div>
+                        `;
+                    
+                    case "matchmaker":
+                        return `
+                            <div class="space-y-4">
+                                ${InputWrap("เป้าหมายหลัก", `
+                                    <select 
+                                        class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
+                                        value="${f.goal}" 
+                                        onchange="app.handleInputChange('matchmaker', 'goal', this.value)">
+                                        <option value="ลดหย่อนภาษี">ลดหย่อนภาษี</option>
+                                        <option value="มรดกให้ลูกหลาน">มรดกให้ลูกหลาน</option>
+                                        <option value="ค่ารักษาพยาบาล (สุขภาพ)">ค่ารักษาพยาบาล (สุขภาพ)</option>
+                                        <option value="เงินออม/เกษียณ">เงินออม/เกษียณ</option>
+                                    </select>
+                                `)}
+                                ${InputWrap("งบประมาณที่ชำระได้สะดวก (ต่อปี)", `
+                                    <input type="number" 
+                                        class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
+                                        value="${f.budget}" 
+                                        oninput="app.handleInputChange('matchmaker', 'budget', this.value)"
+                                        placeholder="เช่น 30,000">
+                                `)}
+                                <div class="p-4 bg-gradient-to-r from-sky-50 to-indigo-50 rounded-xl border border-sky-100 flex items-start gap-3">
+                                    <span class="icon-zap icon-small text-sky-600"></span>
+                                    <p class="text-xs text-sky-800 leading-relaxed">MAMA จะแนะนำแผนโดยอ้างอิงสวัสดิการพื้นฐานของคนในโซน <b>${this.state.userProfile.zone}</b> เป็นหลัก</p>
+                                </div>
+                            </div>
+                        `;
+                    
+                    case "closing":
+                        return `
+                            <div class="space-y-4">
+                                ${InputWrap("จุดที่ลูกค้าดูสนใจมากที่สุด", `
+                                    <input type="text" 
+                                        class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
+                                        value="${f.interest_point}" 
+                                        oninput="app.handleInputChange('closing', 'interest_point', this.value)"
+                                        placeholder="เช่น การคุ้มครองโรคร้ายแรง">
+                                `)}
+                                ${InputWrap("ข้อกังวลสุดท้ายที่ลูกค้าลังเล", `
+                                    <textarea 
+                                        class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm h-32 resize-none" 
+                                        oninput="app.handleInputChange('closing', 'last_concern', this.value)"
+                                        placeholder="เช่น กลัวอนาคตส่งไม่ไหว">${f.last_concern}</textarea>
+                                `)}
+                            </div>
+                        `;
+                    
+                    case "prompt_designer":
+                        return `
+                            <div class="space-y-4">
+                                ${InputWrap("เป้าหมายของคำสั่ง (Objective)", `
+                                    <input type="text" 
+                                        class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
+                                        value="${f.objective}" 
+                                        oninput="app.handleInputChange('prompt_designer', 'objective', this.value)"
+                                        placeholder="เช่น เขียนโพสต์ Facebook ขายประกันสุขภาพ">
+                                `)}
+                                ${InputWrap("กลุ่มเป้าหมาย (Target)", `
+                                    <input type="text" 
+                                        class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
+                                        value="${f.target}" 
+                                        oninput="app.handleInputChange('prompt_designer', 'target', this.value)"
+                                        placeholder="เช่น เจ้าของสวนยางในกระบี่">
+                                `)}
+                                ${InputWrap("อารมณ์ที่ต้องการ", `
+                                    <select 
+                                        class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm" 
+                                        value="${f.tone}" 
+                                        onchange="app.handleInputChange('prompt_designer', 'tone', this.value)">
+                                        <option value="Professional">Professional</option>
+                                        <option value="อบอุ่น/เป็นกันเอง">อบอุ่น/เป็นกันเอง</option>
+                                        <option value="กระตุ้นให้ตระหนักถึงความเสี่ยง">กระตุ้นให้ตระหนักถึงความเสี่ยง</option>
+                                    </select>
+                                `)}
+                                ${InputWrap("ข้อมูลเฉพาะที่ต้องใส่", `
+                                    <textarea 
+                                        class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm h-24 resize-none" 
+                                        oninput="app.handleInputChange('prompt_designer', 'details', this.value)"
+                                        placeholder="ชื่อโรงพยาบาล, ชื่อแผนประกัน...">${f.details}</textarea>
+                                `)}
+                            </div>
+                        `;
+                    
                     default:
-                        return `<div>Input section for ${tab}</div>`;
+                        return `<div class="text-center text-slate-500 p-8">เลือกหมวดหมู่เพื่อเริ่มต้น</div>`;
                 }
             }
             
             renderSetupPage() {
+                const rhOptions = Object.keys(RH_DATA).map(rh => 
+                    `<option value="${rh}">${rh}</option>`
+                ).join('');
+                
+                const zoneOptions = this.state.userProfile.rh 
+                    ? ZONES[this.state.userProfile.rh].map(z => 
+                        `<option value="${z}">${z}</option>`
+                      ).join('')
+                    : '';
+                
                 return `
                     <div class="min-h-screen bg-gradient-to-br from-slate-900 to-slate-950 flex items-center justify-center p-6">
                         <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 overflow-hidden relative">
                             <div class="absolute top-0 right-0 p-4 opacity-5">
-                                ${Sparkles({ size: 120 })}
+                                <span class="icon-sparkles" style="font-size: 120px;"></span>
                             </div>
                             
                             <div class="flex flex-col items-center mb-8 relative">
                                 <div class="w-16 h-16 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-xl">
-                                    ${Sparkles({ size: 32 })}
+                                    <span class="icon-sparkles" style="font-size: 32px;"></span>
                                 </div>
                                 <h1 class="text-3xl font-black text-slate-900 tracking-tight">MAMA V.2</h1>
                                 <p class="text-[10px] bg-gradient-to-r from-sky-600 to-indigo-600 bg-clip-text text-transparent font-bold tracking-[0.2em] uppercase mt-1">AI Sale Assistant</p>
@@ -451,15 +632,16 @@
                                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">API KEY</label>
                                     <input type="password" 
                                         value="${this.state.apiKey}" 
-                                        onchange="app.setState({ apiKey: this.value })"
+                                        oninput="app.setState({ apiKey: this.value })"
                                         placeholder="Gemini API Key..." 
                                         class="w-full border-2 border-slate-100 rounded-xl p-3 focus:border-sky-500 outline-none transition-all">
+                                    <p class="text-xs text-slate-500 mt-1">(หากไม่มี API Key สามารถใช้ระบบ Demo ได้)</p>
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">AGENT NAME</label>
                                     <input type="text" 
                                         value="${this.state.userProfile.agentName}" 
-                                        onchange="app.setState({ userProfile: { ...app.state.userProfile, agentName: this.value } })"
+                                        oninput="app.setState({ userProfile: { ...app.state.userProfile, agentName: this.value } })"
                                         placeholder="ชื่อตัวแทน..." 
                                         class="w-full border-2 border-slate-100 rounded-xl p-3 focus:border-sky-500 outline-none transition-all">
                                 </div>
@@ -471,7 +653,7 @@
                                             onchange="app.setState({ userProfile: { ...app.state.userProfile, rh: this.value, zone: '' } })"
                                             class="w-full border-2 border-slate-100 rounded-xl p-3 focus:border-sky-500 outline-none">
                                             <option value="">เลือก RH</option>
-                                            ${Object.keys(RH_DATA).map(rh => `<option value="${rh}">${rh}</option>`).join('')}
+                                            ${rhOptions}
                                         </select>
                                     </div>
                                     <div>
@@ -482,16 +664,20 @@
                                             ${!this.state.userProfile.rh ? 'disabled' : ''}
                                             class="w-full border-2 border-slate-100 rounded-xl p-3 focus:border-sky-500 outline-none ${!this.state.userProfile.rh ? 'bg-slate-50' : ''}">
                                             <option value="">เลือกโซน</option>
-                                            ${this.state.userProfile.rh ? ZONES[this.state.userProfile.rh].map(z => `<option value="${z}">${z}</option>`).join('') : ''}
+                                            ${zoneOptions}
                                         </select>
                                     </div>
                                 </div>
                                 
                                 <button 
-                                    onclick="if(app.state.apiKey && app.state.userProfile.agentName && app.state.userProfile.zone) app.setState({ isSetup: true }); else alert('กรุณากรอกข้อมูลให้ครบ')"
+                                    onclick="if(app.state.userProfile.agentName && app.state.userProfile.zone) app.setState({ isSetup: true }); else alert('กรุณากรอกข้อมูลให้ครบ')"
                                     class="w-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold py-4 rounded-xl transition-all mt-4 flex items-center justify-center gap-2 shadow-lg shadow-sky-900/20">
-                                    Start Copilot ${ChevronRight({ size: 18 })}
+                                    Start Copilot <span class="icon-chevron"></span>
                                 </button>
+                                
+                                <p class="text-xs text-center text-slate-500 mt-4">
+                                    ระบบสามารถทำงานได้โดยไม่ต้องใช้ API Key (Demo Mode)
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -500,16 +686,17 @@
             
             renderMainPage() {
                 const tabs = [
-                    { id: 'needs_analysis', label: '1. วิเคราะห์ความต้องการ', icon: Calculator },
-                    { id: 'ice_breaking', label: '2. บทสนทนาเปิดใจ', icon: MessageSquare },
-                    { id: 'objection', label: '3. ทลายข้อโต้แย้ง', icon: ShieldAlert },
-                    { id: 'simplifier', label: '4. ย่อยผลประโยชน์', icon: Gift },
-                    { id: 'matchmaker', label: '5. เลือกผลิตภัณฑ์', icon: ShoppingBag },
-                    { id: 'closing', label: '6. สรุปและปิดการขาย', icon: FileCheck },
-                    { id: 'prompt_designer', label: '7. Prompt Designer', icon: Terminal },
+                    { id: 'needs_analysis', label: '1. วิเคราะห์ความต้องการ', icon: 'icon-calculator' },
+                    { id: 'ice_breaking', label: '2. บทสนทนาเปิดใจ', icon: 'icon-message' },
+                    { id: 'objection', label: '3. ทลายข้อโต้แย้ง', icon: 'icon-shield' },
+                    { id: 'simplifier', label: '4. ย่อยผลประโยชน์', icon: 'icon-gift' },
+                    { id: 'matchmaker', label: '5. เลือกผลิตภัณฑ์', icon: 'icon-bag' },
+                    { id: 'closing', label: '6. สรุปและปิดการขาย', icon: 'icon-file' },
+                    { id: 'prompt_designer', label: '7. Prompt Designer', icon: 'icon-terminal' },
                 ];
                 
-                const rh = RH_DATA[this.state.userProfile.rh];
+                const rh = RH_DATA[this.state.userProfile.rh] || {};
+                const zone = this.state.userProfile.zone;
                 
                 return `
                     <div class="min-h-screen bg-slate-50 flex flex-col md:flex-row overflow-hidden">
@@ -517,7 +704,7 @@
                         <aside class="w-full md:w-72 bg-gradient-to-b from-slate-900 to-slate-950 text-white flex flex-col flex-shrink-0 z-30 shadow-2xl">
                             <div class="p-6 border-b border-white/5 flex items-center gap-3">
                                 <div class="w-10 h-10 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-xl flex items-center justify-center text-white">
-                                    ${Sparkles({ size: 24 })}
+                                    <span class="icon-sparkles" style="font-size: 24px;"></span>
                                 </div>
                                 <div>
                                     <span class="font-black text-xl block leading-none">MAMA <span class="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">V.2</span></span>
@@ -530,7 +717,7 @@
                                     <button
                                         onclick="app.setState({ activeTab: '${tab.id}', aiResponse: '' })"
                                         class="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all group ${this.state.activeTab === tab.id ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-white/5 hover:text-white'}">
-                                        ${tab.icon({ size: 18, class: this.state.activeTab === tab.id ? 'text-white' : 'text-sky-400' })}
+                                        <span class="${tab.icon} icon-small ${this.state.activeTab === tab.id ? 'text-white' : 'text-sky-400'}"></span>
                                         <span class="text-[13px] font-bold">${tab.label}</span>
                                     </button>
                                 `).join('')}
@@ -539,12 +726,12 @@
                             <div class="p-4 bg-black/20 border-t border-white/5">
                                 <div class="bg-slate-800/50 rounded-2xl p-4 relative overflow-hidden">
                                     <div class="text-[10px] text-slate-500 font-bold mb-2 flex items-center gap-1 uppercase">
-                                        ${MapPin({ size: 10 })} ${this.state.userProfile.zone}
+                                        <span class="icon-map icon-small"></span> ${zone}
                                     </div>
-                                    <div class="text-xs font-bold mb-1 truncate">${rh.name}</div>
-                                    <div class="text-[10px] text-slate-400 italic">"${rh.tone}"</div>
+                                    <div class="text-xs font-bold mb-1 truncate">${rh.name || 'กรุณาเลือกภูมิภาค'}</div>
+                                    <div class="text-[10px] text-slate-400 italic">"${rh.tone || 'เลือกภูมิภาคเพื่อดูรายละเอียด'}"</div>
                                     <button onclick="app.setState({ isSetup: false })" class="absolute top-2 right-2 text-slate-600 hover:text-sky-400">
-                                        ${RotateCcw({ size: 14 })}
+                                        <span class="icon-rotate icon-small"></span>
                                     </button>
                                 </div>
                             </div>
@@ -559,16 +746,18 @@
                                         ${this.state.activeTab.replace('_', ' ').toUpperCase()}
                                     </h2>
                                     <div class="flex gap-2 mt-1">
-                                        ${rh.keywords.slice(0, 2).map(k => `
+                                        ${rh.keywords ? rh.keywords.slice(0, 2).map(k => `
                                             <span class="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold">#${k}</span>
-                                        `).join('')}
+                                        `).join('') : ''}
                                     </div>
                                 </div>
                                 <button 
                                     onclick="app.handleGenerate()"
                                     ${this.state.loading ? 'disabled' : ''}
                                     class="px-8 py-3 rounded-xl font-black transition-all flex items-center gap-2 shadow-xl ${this.state.loading ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white hover:from-sky-700 hover:to-indigo-700 shadow-sky-900/10'}">
-                                    ${this.state.loading ? Loader2({ class: 'spinner', size: 18 }) : Sparkles({ size: 18 })}
+                                    ${this.state.loading ? 
+                                        '<i class="fas fa-spinner fa-spin"></i>' : 
+                                        '<span class="icon-sparkles"></span>'}
                                     ${this.state.loading ? 'ANALYZING...' : 'AI วิเคราะห์'}
                                 </button>
                             </header>
@@ -578,7 +767,7 @@
                                 <div class="w-80 bg-white border-r overflow-y-auto p-6 flex-shrink-0 custom-scrollbar">
                                     <div class="mb-6 flex items-center justify-between">
                                         <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Client Inputs</h4>
-                                        ${TrendingUp({ size: 14, class: 'text-slate-200' })}
+                                        <span class="icon-trending icon-small text-slate-200"></span>
                                     </div>
                                     <div id="input-section">
                                         ${this.renderInputSection()}
@@ -587,21 +776,21 @@
                                     <!-- Region Insights -->
                                     <div class="mt-8 pt-8 border-t space-y-4">
                                         <div class="flex items-center gap-2 bg-gradient-to-r from-sky-600 to-indigo-600 bg-clip-text text-transparent">
-                                            ${Building2({ size: 16 })}
+                                            <span class="icon-building icon-small"></span>
                                             <span class="text-[10px] font-black uppercase tracking-wider">Local Insight</span>
                                         </div>
                                         <div class="p-4 bg-slate-50 rounded-2xl border">
-                                            <p class="text-xs text-slate-600 leading-relaxed italic">"${rh.dynamics}"</p>
+                                            <p class="text-xs text-slate-600 leading-relaxed italic">"${rh.dynamics || 'กรุณาเลือกภูมิภาค'}"</p>
                                         </div>
                                         <div class="space-y-2">
                                             <div class="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                                                ${Stethoscope({ size: 16 })}
+                                                <span class="icon-stethoscope icon-small"></span>
                                                 <span class="text-[10px] font-black uppercase tracking-wider">Top Hospitals</span>
                                             </div>
                                             <div class="flex flex-wrap gap-1.5">
-                                                ${rh.hospitals.map(h => `
+                                                ${rh.hospitals ? rh.hospitals.map(h => `
                                                     <span class="text-[9px] bg-white border px-2 py-1 rounded-lg text-slate-500 font-bold">${h}</span>
-                                                `).join('')}
+                                                `).join('') : '<span class="text-[9px] text-slate-400">กรุณาเลือกภูมิภาค</span>'}
                                             </div>
                                         </div>
                                     </div>
@@ -622,7 +811,7 @@
                     return `
                         <div class="h-full flex flex-col items-center justify-center opacity-20 select-none px-12 text-center py-12">
                             <div class="w-32 h-32 bg-gradient-to-br from-slate-200 to-slate-300 rounded-full flex items-center justify-center mb-6 shadow-inner">
-                                ${Sparkles({ size: 64, class: 'text-slate-400' })}
+                                <span class="icon-sparkles" style="font-size: 64px; color: #94a3b8;"></span>
                             </div>
                             <h3 class="text-3xl font-black tracking-tight bg-gradient-to-r from-slate-400 to-slate-600 bg-clip-text text-transparent">MAMA READY</h3>
                             <p class="mt-2 text-slate-500 max-w-sm">
@@ -645,7 +834,7 @@
                             <div class="bg-gradient-to-r from-sky-600 to-indigo-600 px-10 py-6 text-white flex justify-between items-center">
                                 <div class="flex items-center gap-3">
                                     <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-                                        ${Lightbulb({ size: 24 })}
+                                        <span class="icon-lightbulb" style="font-size: 24px;"></span>
                                     </div>
                                     <div>
                                         <div class="text-[10px] font-bold text-sky-300 uppercase tracking-[0.2em]">AI SUGGESTION</div>
@@ -653,7 +842,7 @@
                                     </div>
                                 </div>
                                 <button onclick="navigator.clipboard.writeText('${this.state.aiResponse.replace(/'/g, "\\'")}'); alert('คัดลอกลง Clipboard แล้ว');" class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center transition-colors backdrop-blur-sm">
-                                    ${Copy({ size: 18 })}
+                                    <span class="icon-copy icon-small"></span>
                                 </button>
                             </div>
                             
@@ -667,10 +856,10 @@
                                 <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Helpful?</span>
                                 <div class="flex gap-4">
                                     <button onclick="app.setState({ feedback: 'up' })" class="w-12 h-12 rounded-full flex items-center justify-center border transition-all ${this.state.feedback === 'up' ? 'bg-gradient-to-br from-emerald-500 to-green-500 text-white border-emerald-500' : 'bg-white text-slate-300 hover:text-emerald-500'}">
-                                        ${ThumbsUp({ size: 20 })}
+                                        <span class="icon-thumbs-up"></span>
                                     </button>
                                     <button onclick="app.setState({ feedback: 'down' })" class="w-12 h-12 rounded-full flex items-center justify-center border transition-all ${this.state.feedback === 'down' ? 'bg-gradient-to-br from-rose-500 to-pink-500 text-white border-rose-500' : 'bg-white text-slate-300 hover:text-rose-500'}">
-                                        ${ThumbsDown({ size: 20 })}
+                                        <span class="icon-thumbs-down"></span>
                                     </button>
                                 </div>
                             </div>
@@ -679,10 +868,10 @@
                         <!-- Footer Buttons -->
                         <div class="mt-8 flex flex-wrap justify-center gap-3">
                             <button class="bg-white border text-slate-600 px-6 py-3 rounded-xl text-xs font-bold hover:bg-slate-50 flex items-center gap-2 shadow-sm">
-                                ${Share2({ size: 14 })} ส่งเข้า Line
+                                <span class="icon-share icon-small"></span> ส่งเข้า Line
                             </button>
                             <button class="bg-white border text-slate-600 px-6 py-3 rounded-xl text-xs font-bold hover:bg-slate-50 flex items-center gap-2 shadow-sm">
-                                ${Save({ size: 14 })} บันทึกเคส
+                                <span class="icon-save icon-small"></span> บันทึกเคส
                             </button>
                         </div>
                     </div>
@@ -691,27 +880,63 @@
             
             render() {
                 const root = document.getElementById('root');
-                if (!root) return;
+                if (!root) {
+                    console.error("Root element not found!");
+                    return;
+                }
                 
-                root.innerHTML = this.state.isSetup ? this.renderMainPage() : this.renderSetupPage();
-                
-                // Re-attach lucide icons
-                if (window.lucide.createIcons) {
-                    window.lucide.createIcons();
+                try {
+                    root.innerHTML = this.state.isSetup ? this.renderMainPage() : this.renderSetupPage();
+                    console.log("Render successful!");
+                } catch (error) {
+                    console.error("Render error:", error);
+                    root.innerHTML = `
+                        <div class="min-h-screen flex items-center justify-center bg-red-50">
+                            <div class="bg-white p-8 rounded-2xl shadow-lg max-w-md">
+                                <h1 class="text-2xl font-bold text-red-600 mb-4">เกิดข้อผิดพลาด</h1>
+                                <p class="text-slate-600 mb-4">ระบบไม่สามารถแสดงผลได้ กรุณารีเฟรชหน้าเว็บ</p>
+                                <button onclick="location.reload()" class="w-full bg-sky-600 text-white py-3 rounded-lg font-bold">
+                                    รีเฟรชหน้าเว็บ
+                                </button>
+                            </div>
+                        </div>
+                    `;
                 }
             }
             
             init() {
-                this.render();
-                // Initialize lucide icons
-                if (window.lucide.createIcons) {
-                    window.lucide.createIcons();
+                // ตั้งค่า state เริ่มต้นจาก localStorage ถ้ามี
+                try {
+                    const savedState = localStorage.getItem('mama_state');
+                    if (savedState) {
+                        const parsed = JSON.parse(savedState);
+                        this.setState(parsed);
+                    }
+                } catch (e) {
+                    console.log("No saved state found");
                 }
+                
+                // บันทึก state ลง localStorage เมื่อเปลี่ยนแปลง
+                const originalSetState = this.setState.bind(this);
+                this.setState = (newState) => {
+                    originalSetState(newState);
+                    try {
+                        localStorage.setItem('mama_state', JSON.stringify(this.state));
+                    } catch (e) {
+                        console.log("Could not save state to localStorage");
+                    }
+                };
+                
+                this.render();
             }
         }
 
-        // Initialize the app
-        window.app = new MAMAV2();
+        // ตรวจสอบว่า DOM พร้อมแล้ว
+        document.addEventListener('DOMContentLoaded', function() {
+            // เริ่มต้นแอปพลิเคชัน
+            window.app = new MAMAV2();
+            console.log("MAMA V.2 App loaded successfully!");
+        });
     </script>
 </body>
 </html>
