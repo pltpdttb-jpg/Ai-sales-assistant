@@ -25,6 +25,8 @@
         
         body {
             overflow-x: hidden;
+            margin: 0;
+            padding: 0;
         }
         
         .animate-in {
@@ -158,6 +160,16 @@
             transform: translateY(-20px);
             transition: opacity 300ms, transform 300ms;
         }
+        
+        /* Loading animation */
+        .pulse {
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
     </style>
 </head>
 <body class="bg-slate-900">
@@ -169,10 +181,10 @@
             <h3 class="text-lg font-bold text-slate-800 mb-4">ระบบนี้ไม่มีการประมวลผลด้วย AI</h3>
             <p class="text-slate-600 mb-6">คุณกำลังจะเข้าสู่ระบบที่ทำงานโดยไม่มี AI กรุณาตรวจสอบให้แน่ใจว่านี่คือสิ่งที่คุณต้องการ</p>
             <div class="flex gap-3 justify-end">
-                <button onclick="app.hideNonAIPopup()" class="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium">
+                <button id="cancel-non-ai" class="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium">
                     Cancel
                 </button>
-                <button onclick="app.goToNonAISystem()" class="px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-bold rounded-lg hover:from-sky-700 hover:to-indigo-700">
+                <button id="confirm-non-ai" class="px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-bold rounded-lg hover:from-sky-700 hover:to-indigo-700">
                     Ok! Let's go
                 </button>
             </div>
@@ -289,22 +301,9 @@
         // Initialize Supabase client
         const supabase = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.key);
 
-        // API Key Rotation Function with retry and cache
-        const apiKeyCache = {
-            key: null,
-            lastFetched: null,
-            ttl: 5 * 60 * 1000 // 5 minutes
-        };
-
-        const getRotatedApiKey = async (retryCount = 0) => {
+        // API Key Rotation Function
+        const getRotatedApiKey = async () => {
             try {
-                // Return cached key if still valid
-                if (apiKeyCache.key && apiKeyCache.lastFetched && 
-                    (Date.now() - apiKeyCache.lastFetched) < apiKeyCache.ttl) {
-                    return apiKeyCache.key;
-                }
-                
-                // Fetch new key with rate limiting protection
                 const { data, error } = await supabase
                     .from('api_keys')
                     .select('key, usage_count, last_used')
@@ -317,11 +316,7 @@
                 if (data && data.length > 0) {
                     const newKey = data[0].key;
                     
-                    // Update cache
-                    apiKeyCache.key = newKey;
-                    apiKeyCache.lastFetched = Date.now();
-                    
-                    // Update usage count async (don't wait for it)
+                    // Update usage count async
                     supabase
                         .from('api_keys')
                         .update({ 
@@ -329,7 +324,6 @@
                             last_used: new Date().toISOString()
                         })
                         .eq('key', newKey)
-                        .then(() => console.log('API key usage updated'))
                         .catch(err => console.error('Failed to update API key usage:', err));
                     
                     return newKey;
@@ -337,14 +331,6 @@
                 return null;
             } catch (error) {
                 console.error('Supabase error:', error);
-                
-                // Retry logic
-                if (retryCount < 2) {
-                    console.log(`Retrying API key fetch (${retryCount + 1}/2)...`);
-                    await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
-                    return getRotatedApiKey(retryCount + 1);
-                }
-                
                 return null;
             }
         };
@@ -353,10 +339,8 @@
         class MAMAV2Enhanced {
             constructor() {
                 this.state = {
-                    // Passcode related states
                     passcodeVerified: false,
                     showPasscodeForm: true,
-                    // Existing states
                     currentApiKey: "",
                     isSetup: false,
                     userProfile: { rh: "", zone: "" },
@@ -420,114 +404,14 @@
                     }
                 };
                 
-                // Performance optimizations
-                this.renderTimeout = null;
-                this.lastRenderTime = 0;
-                this.minRenderInterval = 50; // ms
-                this.eventListeners = [];
-                this.isRendering = false;
-                this.pendingStateUpdates = [];
-                
                 this.init();
             }
             
-            // ========== ENHANCED STATE MANAGEMENT ==========
-            
             setState(newState, callback) {
-                // Debounced and batched state updates
-                this.pendingStateUpdates.push(newState);
+                // Simple state update
+                Object.assign(this.state, newState);
                 
-                clearTimeout(this.renderTimeout);
-                this.renderTimeout = setTimeout(() => {
-                    this._processStateUpdates(callback);
-                }, 16); // ~60fps
-            }
-            
-            _processStateUpdates(callback) {
-                if (this.pendingStateUpdates.length === 0) return;
-                
-                // Batch all pending updates
-                const batchUpdate = this.pendingStateUpdates.reduce((acc, update) => {
-                    return this._deepMerge(acc, update);
-                }, {});
-                
-                this.pendingStateUpdates = [];
-                
-                // Check if update is needed
-                const shouldUpdate = this._shouldUpdate(this.state, batchUpdate);
-                
-                if (shouldUpdate) {
-                    // Immutable update
-                    const newState = this._deepMerge({}, this.state, batchUpdate);
-                    
-                    // Store old state for comparison
-                    const oldState = { ...this.state };
-                    
-                    // Update state
-                    for (let key in newState) {
-                        if (typeof newState[key] === 'object' && newState[key] !== null && !Array.isArray(newState[key])) {
-                            this.state[key] = { ...this.state[key], ...newState[key] };
-                        } else {
-                            this.state[key] = newState[key];
-                        }
-                    }
-                    
-                    // Prevent rapid re-renders
-                    const now = Date.now();
-                    if (now - this.lastRenderTime >= this.minRenderInterval && !this.isRendering) {
-                        this.lastRenderTime = now;
-                        this.render();
-                    }
-                    
-                    if (callback) callback();
-                    
-                    // Auto-save to localStorage (debounced)
-                    this._debouncedSave();
-                }
-            }
-            
-            _deepMerge(target, ...sources) {
-                sources.forEach(source => {
-                    if (!source || typeof source !== 'object') return;
-                    
-                    Object.keys(source).forEach(key => {
-                        const targetValue = target[key];
-                        const sourceValue = source[key];
-                        
-                        if (Array.isArray(sourceValue)) {
-                            target[key] = sourceValue.slice();
-                        } else if (sourceValue && typeof sourceValue === 'object' && 
-                                 targetValue && typeof targetValue === 'object') {
-                            target[key] = this._deepMerge({}, targetValue, sourceValue);
-                        } else {
-                            target[key] = sourceValue;
-                        }
-                    });
-                });
-                
-                return target;
-            }
-            
-            _shouldUpdate(oldState, newState) {
-                // Simple shallow comparison for performance
-                for (let key in newState) {
-                    if (key === 'forms') {
-                        // Deep compare forms
-                        for (let formKey in newState.forms) {
-                            for (let fieldKey in newState.forms[formKey]) {
-                                if (oldState.forms[formKey][fieldKey] !== newState.forms[formKey][fieldKey]) {
-                                    return true;
-                                }
-                            }
-                        }
-                    } else if (oldState[key] !== newState[key]) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            
-            _debouncedSave = this._debounce(() => {
+                // Save to localStorage
                 try {
                     const stateToSave = { ...this.state };
                     delete stateToSave.currentApiKey;
@@ -535,24 +419,14 @@
                 } catch (e) {
                     console.warn("Could not save state to localStorage");
                 }
-            }, 1000);
-            
-            _debounce(func, wait) {
-                let timeout;
-                return function executedFunction(...args) {
-                    const later = () => {
-                        clearTimeout(timeout);
-                        func(...args);
-                    };
-                    clearTimeout(timeout);
-                    timeout = setTimeout(later, wait);
-                };
+                
+                // Render
+                this.render();
+                
+                if (callback) callback();
             }
             
-            // ========== PASSCODE METHODS ==========
-            
             verifyPasscode(input) {
-                // Passcode ถูกฝังในโค้ด frontend (ตาม requirement)
                 const PASSCODE = "2026";
                 return input === PASSCODE;
             }
@@ -565,7 +439,6 @@
                     });
                     return true;
                 } else {
-                    // แสดงเอฟเฟกต์สั่นเมื่อรหัสผิด
                     const input = document.getElementById('passcode-input');
                     if (input) {
                         input.classList.add('shake');
@@ -584,7 +457,6 @@
                 if (passcodeInput) {
                     const passcode = passcodeInput.value;
                     if (this.handlePasscodeSubmit(passcode)) {
-                        // Focus management for better UX
                         setTimeout(() => {
                             const rhSelect = document.getElementById('rh-select');
                             if (rhSelect) rhSelect.focus();
@@ -594,143 +466,48 @@
             }
             
             logout() {
-                // Clear all timeouts and intervals
-                this._cleanup();
-                
                 this.setState({
                     passcodeVerified: false,
                     showPasscodeForm: true,
                     isSetup: false,
-                    userProfile: { rh: "", zone: "" }
+                    userProfile: { rh: "", zone: "" },
+                    aiResponse: "",
+                    error: ""
                 });
-                
-                // Clear cache
-                apiKeyCache.key = null;
-                apiKeyCache.lastFetched = null;
                 
                 localStorage.removeItem('mama_v2_state');
             }
             
-            // ========== FORM HANDLING WITH EVENT DELEGATION ==========
+            // ========== RENDER METHODS ==========
             
-            _setupEventDelegation() {
-                // Remove existing listeners
-                this._removeEventListeners();
-                
-                // Add delegated listeners
+            render() {
                 const root = document.getElementById('root');
-                if (!root) return;
+                if (!root) {
+                    console.error("Root element not found!");
+                    return;
+                }
                 
-                // Input change handler
-                const inputHandler = (e) => {
-                    const target = e.target;
-                    if (target.matches('input, textarea, select')) {
-                        const tab = target.dataset.tab;
-                        const field = target.dataset.field;
-                        
-                        if (tab && field) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            
-                            const value = target.type === 'checkbox' ? target.checked : target.value;
-                            this._handleFormInput(tab, field, value);
-                        }
-                    }
-                };
-                
-                // Button click handler
-                const clickHandler = (e) => {
-                    const target = e.target;
-                    const button = target.closest('button');
+                try {
+                    let html = '';
                     
-                    if (button) {
-                        const action = button.dataset.action;
-                        
-                        switch (action) {
-                            case 'generate':
-                                e.preventDefault();
-                                this.handleGenerate();
-                                break;
-                            case 'copy':
-                                e.preventDefault();
-                                navigator.clipboard.writeText(this.state.aiResponse)
-                                    .then(() => alert('คัดลอกแล้ว!'))
-                                    .catch(() => alert('ไม่สามารถคัดลอกได้'));
-                                break;
-                            case 'feedback-up':
-                                e.preventDefault();
-                                this.setState({ feedback: 'up' });
-                                break;
-                            case 'feedback-down':
-                                e.preventDefault();
-                                this.setState({ feedback: 'down' });
-                                break;
-                            case 'logout':
-                                e.preventDefault();
-                                this.logout();
-                                break;
-                            case 'change-zone':
-                                e.preventDefault();
-                                this.setState({ isSetup: false });
-                                break;
-                            case 'submit-passcode':
-                                e.preventDefault();
-                                this.submitPasscode();
-                                break;
-                            case 'non-ai-system':
-                                e.preventDefault();
-                                this.showNonAIPopup();
-                                break;
-                        }
+                    if (!this.state.passcodeVerified) {
+                        html = this.renderPasscodeForm();
+                    } else if (!this.state.isSetup) {
+                        html = this.renderSetupPage();
+                    } else {
+                        html = this.renderMainPage();
                     }
-                };
-                
-                // Key handler for passcode input
-                const keyHandler = (e) => {
-                    if (e.target.id === 'passcode-input' && e.key === 'Enter') {
-                        e.preventDefault();
-                        this.submitPasscode();
-                    }
-                };
-                
-                // Add listeners
-                root.addEventListener('input', inputHandler);
-                root.addEventListener('change', inputHandler);
-                root.addEventListener('click', clickHandler);
-                root.addEventListener('keyup', keyHandler);
-                
-                // Store for cleanup
-                this.eventListeners = [
-                    { element: root, type: 'input', handler: inputHandler },
-                    { element: root, type: 'change', handler: inputHandler },
-                    { element: root, type: 'click', handler: clickHandler },
-                    { element: root, type: 'keyup', handler: keyHandler }
-                ];
+                    
+                    root.innerHTML = html;
+                    
+                    // Attach event listeners after DOM is updated
+                    setTimeout(() => this.attachEventListeners(), 10);
+                    
+                } catch (error) {
+                    console.error("Render error:", error);
+                    this.renderError(error);
+                }
             }
-            
-            _handleFormInput(tab, field, value) {
-                // Immutable update for forms
-                this.setState({
-                    forms: {
-                        ...this.state.forms,
-                        [tab]: {
-                            ...this.state.forms[tab],
-                            [field]: value
-                        }
-                    }
-                });
-            }
-            
-            _removeEventListeners() {
-                this.eventListeners.forEach(({ element, type, handler }) => {
-                    if (element && handler) {
-                        element.removeEventListener(type, handler);
-                    }
-                });
-                this.eventListeners = [];
-            }
-            
-            // ========== RENDER PASSCODE FORM ==========
             
             renderPasscodeForm() {
                 return `
@@ -765,7 +542,7 @@
                                 </div>
                                 
                                 <button 
-                                    data-action="submit-passcode"
+                                    id="submit-passcode-btn"
                                     class="w-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-sky-900/20 active:scale-95 transform transition-transform">
                                     ตรวจสอบรหัสผ่าน ${ICONS.chevronRight}
                                 </button>
@@ -784,21 +561,105 @@
                 `;
             }
             
-            // ========== OPTIMIZED FORM RENDERING ==========
+            renderSetupPage() {
+                const rhOptions = Object.keys(RH_DATA).map(rh => 
+                    `<option value="${rh}" ${this.state.userProfile.rh === rh ? 'selected' : ''}>${rh}</option>`
+                ).join('');
+                
+                const zoneOptions = this.state.userProfile.rh 
+                    ? RH_DATA[this.state.userProfile.rh].zones.map(z => 
+                        `<option value="${z}" ${this.state.userProfile.zone === z ? 'selected' : ''}>${z}</option>`
+                      ).join('')
+                    : '';
+                
+                return `
+                    <div class="min-h-screen bg-gradient-to-br from-slate-900 to-slate-950 flex items-center justify-center p-4">
+                        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 md:p-8">
+                            <div class="flex flex-col items-center mb-8">
+                                <div class="w-20 h-20 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-xl">
+                                    ${ICONS.sparkles.replace('text-amber-500', 'text-white')}
+                                </div>
+                                <h1 class="text-3xl font-black text-slate-900 tracking-tight">MAMA V.2</h1>
+                                <p class="text-xs bg-gradient-to-r from-sky-600 to-indigo-600 bg-clip-text text-transparent font-bold tracking-[0.2em] uppercase mt-2">Enhanced AI Sale Assistant</p>
+                                <div class="mt-2 text-xs text-slate-500 flex items-center gap-1">
+                                    ${ICONS.lock.replace('text-amber-500', 'text-slate-400')}
+                                    <span>รหัสผ่านถูกตรวจสอบแล้ว</span>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-6">
+                                <div class="text-center mb-6">
+                                    <p class="text-slate-600 mb-4">ระบบนี้ใช้ Supabase สำหรับการจัดการ API Key Rotation</p>
+                                    <div class="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-full">
+                                        ${ICONS.shield.replace('text-amber-500', 'text-slate-600')}
+                                        <span class="text-sm font-medium text-slate-700">Secure API Management</span>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">REGION (RH)</label>
+                                    <select 
+                                        id="rh-select"
+                                        class="w-full border-2 border-slate-100 rounded-xl p-3 focus:border-sky-500 outline-none text-base">
+                                        <option value="">เลือก RH</option>
+                                        ${rhOptions}
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">ZONE</label>
+                                    <select 
+                                        id="zone-select"
+                                        ${!this.state.userProfile.rh ? 'disabled' : ''}
+                                        class="w-full border-2 border-slate-100 rounded-xl p-3 focus:border-sky-500 outline-none text-base ${!this.state.userProfile.rh ? 'bg-slate-50' : ''}">
+                                        <option value="">เลือกโซน</option>
+                                        ${zoneOptions}
+                                    </select>
+                                </div>
+                                
+                                <div class="pt-4 border-t border-slate-100">
+                                    <button 
+                                        id="start-system-btn"
+                                        class="w-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-sky-900/20 active:scale-95 transform transition-transform">
+                                        เริ่มใช้งานระบบ ${ICONS.chevronRight}
+                                    </button>
+                                    
+                                    <div class="mt-6 flex justify-between items-center">
+                                        <button id="logout-btn" class="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1">
+                                            ${ICONS.rotate}
+                                            <span>ออกจากระบบ</span>
+                                        </button>
+                                        
+                                        <button id="non-ai-btn" class="text-sm text-slate-500 hover:text-slate-700 underline">
+                                            ระบบ Non-AI
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
             
             renderInputSection() {
                 const tab = this.state.activeTab;
                 const f = this.state.forms[tab];
                 
-                // Helper functions for creating form elements
-                const createInput = (tabName, field, value, placeholder, type = "text", extraClass = "") => {
+                const escapeHtml = (text) => {
+                    if (text === undefined || text === null) return '';
+                    const div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                };
+                
+                const createInput = (tabName, field, value, placeholder, type = "text") => {
                     return `
                         <input 
                             data-tab="${tabName}"
                             data-field="${field}"
                             type="${type}" 
-                            class="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all ${extraClass}"
-                            value="${this._escapeHtml(value || '')}"
+                            class="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all"
+                            value="${escapeHtml(value || '')}"
                             placeholder="${placeholder}"
                             autocomplete="off"
                         >
@@ -814,7 +675,7 @@
                             rows="${rows}"
                             placeholder="${placeholder}"
                             autocomplete="off"
-                        >${this._escapeHtml(value || '')}</textarea>
+                        >${escapeHtml(value || '')}</textarea>
                     `;
                 };
                 
@@ -883,7 +744,7 @@
                                 )}
                             </div>
                         `;
-                    
+                        
                     case "needs_analysis":
                         const taxOptions = ["10%", "20%", "30%", "ไม่เสียเลย"];
                         const welfareOptions = ["บัตรทอง/ประกันสังคม", "ประกันกลุ่มบริษัท", "มีเล่มประกันส่วนตัว", "ไม่มี"];
@@ -929,7 +790,7 @@
                                 </div>
                             </div>
                         `;
-                    
+                        
                     case "objection":
                         const reasonOptions = ["ไม่มีสภาพคล่อง", "ไม่เชื่อมั่นในตัวแทน", "รู้สึกว่าเบี้ยทิ้งสูญเปล่า", "ขอไปเปรียบเทียบกับคู่แข่ง", "อื่นๆ"];
                         const toneOptions = ["กังวล", "ไม่มั่นใจ", "สงสัย", "ปฏิเสธ", "เหนื่อย"];
@@ -966,18 +827,10 @@
                                 </div>
                             </div>
                         `;
-                    
+                        
                     default:
                         return `<div class="text-center text-slate-500 p-8">เลือกรายการเมนูเพื่อเริ่มต้น</div>`;
                 }
-            }
-            
-            // ========== UTILITY METHODS ==========
-            
-            _escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
             }
             
             calculateProtectionGap() {
@@ -995,208 +848,6 @@
                 return gap;
             }
             
-            showNonAIPopup() {
-                const popup = document.getElementById('non-ai-popup');
-                if (popup) {
-                    popup.classList.remove('hidden');
-                }
-            }
-            
-            hideNonAIPopup() {
-                const popup = document.getElementById('non-ai-popup');
-                if (popup) {
-                    popup.classList.add('hidden');
-                }
-            }
-            
-            goToNonAISystem() {
-                window.location.href = "https://pltpdttb-jpg.github.io/sales-assist/";
-            }
-            
-            async getApiKey() {
-                // Try to get rotated API key from Supabase
-                const rotatedKey = await getRotatedApiKey();
-                if (rotatedKey) {
-                    return rotatedKey;
-                }
-                
-                // Fallback to stored key or demo mode
-                return this.state.currentApiKey;
-            }
-            
-            // ========== ENHANCED RENDER METHOD ==========
-            
-            render() {
-                if (this.isRendering) {
-                    console.warn('Prevented re-entrant render');
-                    return;
-                }
-                
-                this.isRendering = true;
-                
-                const root = document.getElementById('root');
-                if (!root) {
-                    console.error("Root element not found!");
-                    this.isRendering = false;
-                    return;
-                }
-                
-                try {
-                    let html;
-                    
-                    // Determine which page to render
-                    if (!this.state.passcodeVerified) {
-                        html = this.renderPasscodeForm();
-                    } else if (!this.state.isSetup) {
-                        html = this.renderSetupPage();
-                    } else {
-                        html = this.renderMainPage();
-                    }
-                    
-                    // Use requestAnimationFrame for smoother updates
-                    requestAnimationFrame(() => {
-                        // Use documentFragment for better performance
-                        const fragment = document.createDocumentFragment();
-                        const container = document.createElement('div');
-                        container.innerHTML = html;
-                        
-                        while (container.firstChild) {
-                            fragment.appendChild(container.firstChild);
-                        }
-                        
-                        // Replace content
-                        root.innerHTML = '';
-                        root.appendChild(fragment);
-                        
-                        // Setup event delegation after DOM is updated
-                        setTimeout(() => {
-                            this._setupEventDelegation();
-                        }, 0);
-                        
-                        console.log("Render successful!");
-                        this.isRendering = false;
-                    });
-                    
-                } catch (error) {
-                    console.error("Render error:", error);
-                    this.isRendering = false;
-                    this.renderError(error);
-                }
-            }
-            
-            renderError(error) {
-                const root = document.getElementById('root');
-                if (!root) return;
-                
-                root.innerHTML = `
-                    <div class="min-h-screen flex items-center justify-center bg-red-50 p-4">
-                        <div class="bg-white p-8 rounded-2xl shadow-lg max-w-md">
-                            <h1 class="text-2xl font-bold text-red-600 mb-4">เกิดข้อผิดพลาด</h1>
-                            <p class="text-slate-600 mb-2">ระบบไม่สามารถแสดงผลได้:</p>
-                            <pre class="text-xs text-slate-500 bg-slate-100 p-3 rounded mb-4 overflow-auto max-h-40">${error.message}</pre>
-                            <div class="flex gap-2">
-                                <button onclick="location.reload()" class="flex-1 bg-sky-600 text-white py-3 rounded-lg font-bold">
-                                    รีเฟรชหน้าเว็บ
-                                </button>
-                                <button onclick="app.logout()" class="px-4 py-3 bg-slate-200 text-slate-700 rounded-lg font-medium">
-                                    ออกจากระบบ
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // ========== SETUP AND MAIN PAGE RENDERING ==========
-            
-            renderSetupPage() {
-                if (!this.state.passcodeVerified) {
-                    return this.renderPasscodeForm();
-                }
-                
-                const rhOptions = Object.keys(RH_DATA).map(rh => 
-                    `<option value="${rh}" ${this.state.userProfile.rh === rh ? 'selected' : ''}>${rh}</option>`
-                ).join('');
-                
-                const zoneOptions = this.state.userProfile.rh 
-                    ? RH_DATA[this.state.userProfile.rh].zones.map(z => 
-                        `<option value="${z}" ${this.state.userProfile.zone === z ? 'selected' : ''}>${z}</option>`
-                      ).join('')
-                    : '';
-                
-                return `
-                    <div class="min-h-screen bg-gradient-to-br from-slate-900 to-slate-950 flex items-center justify-center p-4">
-                        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 md:p-8">
-                            <div class="flex flex-col items-center mb-8">
-                                <div class="w-20 h-20 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-xl">
-                                    ${ICONS.sparkles.replace('text-amber-500', 'text-white')}
-                                </div>
-                                <h1 class="text-3xl font-black text-slate-900 tracking-tight">MAMA V.2</h1>
-                                <p class="text-xs bg-gradient-to-r from-sky-600 to-indigo-600 bg-clip-text text-transparent font-bold tracking-[0.2em] uppercase mt-2">Enhanced AI Sale Assistant</p>
-                                <div class="mt-2 text-xs text-slate-500 flex items-center gap-1">
-                                    ${ICONS.lock.replace('text-amber-500', 'text-slate-400')}
-                                    <span>รหัสผ่านถูกตรวจสอบแล้ว</span>
-                                </div>
-                            </div>
-                            
-                            <div class="space-y-6">
-                                <div class="text-center mb-6">
-                                    <p class="text-slate-600 mb-4">ระบบนี้ใช้ Supabase สำหรับการจัดการ API Key Rotation</p>
-                                    <div class="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-full">
-                                        ${ICONS.shield.replace('text-amber-500', 'text-slate-600')}
-                                        <span class="text-sm font-medium text-slate-700">Secure API Management</span>
-                                    </div>
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">REGION (RH)</label>
-                                    <select 
-                                        id="rh-select"
-                                        data-tab="userProfile"
-                                        data-field="rh"
-                                        class="w-full border-2 border-slate-100 rounded-xl p-3 focus:border-sky-500 outline-none text-base">
-                                        <option value="">เลือก RH</option>
-                                        ${rhOptions}
-                                    </select>
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">ZONE</label>
-                                    <select 
-                                        id="zone-select"
-                                        data-tab="userProfile" 
-                                        data-field="zone"
-                                        ${!this.state.userProfile.rh ? 'disabled' : ''}
-                                        class="w-full border-2 border-slate-100 rounded-xl p-3 focus:border-sky-500 outline-none text-base ${!this.state.userProfile.rh ? 'bg-slate-50' : ''}">
-                                        <option value="">เลือกโซน</option>
-                                        ${zoneOptions}
-                                    </select>
-                                </div>
-                                
-                                <div class="pt-4 border-t border-slate-100">
-                                    <button 
-                                        onclick="if(app.state.userProfile.zone) app.setState({ isSetup: true }); else alert('กรุณาเลือกโซนให้ครบ')"
-                                        class="w-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-sky-900/20 active:scale-95 transform transition-transform">
-                                        เริ่มใช้งานระบบ ${ICONS.chevronRight}
-                                    </button>
-                                    
-                                    <div class="mt-6 flex justify-between items-center">
-                                        <button data-action="logout" class="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1">
-                                            ${ICONS.rotate}
-                                            <span>ออกจากระบบ</span>
-                                        </button>
-                                        
-                                        <button data-action="non-ai-system" class="text-sm text-slate-500 hover:text-slate-700 underline">
-                                            ระบบ Non-AI
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-            
             renderMainPage() {
                 const tabs = [
                     { id: 'ice_breaking', label: '1. เปิดใจ', icon: ICONS.message, desc: 'Contextual Bridge' },
@@ -1210,8 +861,6 @@
                 
                 const rh = RH_DATA[this.state.userProfile.rh] || {};
                 const zone = this.state.userProfile.zone;
-                
-                const activeTabIndex = tabs.findIndex(tab => tab.id === this.state.activeTab);
                 
                 return `
                     <div class="min-h-screen flex flex-col md:flex-row bg-white">
@@ -1240,9 +889,8 @@
                             </div>
                             
                             <div class="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
-                                ${tabs.map((tab, index) => `
+                                ${tabs.map((tab) => `
                                     <button
-                                        data-action="change-tab"
                                         data-tab-id="${tab.id}"
                                         class="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all group text-left ${this.state.activeTab === tab.id ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-white/5 hover:text-white'}">
                                         ${tab.icon}
@@ -1255,13 +903,13 @@
                             </div>
                             
                             <div class="p-4 border-t border-white/10 space-y-2">
-                                <button data-action="change-zone" 
+                                <button id="change-zone-btn" 
                                         class="w-full flex items-center justify-center gap-2 text-slate-400 hover:text-white py-3 rounded-lg hover:bg-white/5 transition-colors">
                                     ${ICONS.rotate}
                                     <span>เปลี่ยนพื้นที่</span>
                                 </button>
                                 
-                                <button data-action="logout" 
+                                <button id="logout-main-btn" 
                                         class="w-full flex items-center justify-center gap-2 text-rose-400 hover:text-rose-300 py-3 rounded-lg hover:bg-white/5 transition-colors border-t border-white/10 pt-3">
                                     ${ICONS.alert}
                                     <span>ออกจากระบบ</span>
@@ -1289,7 +937,7 @@
                                         </p>
                                     </div>
                                     <button 
-                                        data-action="generate"
+                                        id="generate-ai-btn"
                                         ${this.state.loading ? 'disabled' : ''}
                                         class="px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${this.state.loading ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white hover:from-sky-700 hover:to-indigo-700 shadow-lg active:scale-95 transform transition-transform'}"
                                         style="min-width: 140px;">
@@ -1362,17 +1010,11 @@
                     `;
                 }
                 
-                // Sanitize and format response
-                const formatResponse = (text) => {
-                    return this._escapeHtml(text)
-                        .replace(/### (.*?)(\n|$)/g, '<h3 class="text-xl font-black text-slate-900 mt-8 mb-4 pb-2 border-b">$1</h3>')
-                        .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900">$1</strong>')
-                        .replace(/\n/g, '<br>')
-                        .replace(/- (.*?)(<br>|$)/g, '<li class="mb-2 flex items-start"><span class="mr-2">•</span> <span>$1</span></li>')
-                        .replace(/1\. (.*?)(<br>|$)/g, '<li class="mb-3"><span class="font-bold mr-2">1.</span> <span>$1</span></li>')
-                        .replace(/2\. (.*?)(<br>|$)/g, '<li class="mb-3"><span class="font-bold mr-2">2.</span> <span>$1</span></li>')
-                        .replace(/3\. (.*?)(<br>|$)/g, '<li class="mb-3"><span class="font-bold mr-2">3.</span> <span>$1</span></li>');
-                };
+                // Simple formatting
+                const formattedResponse = this.state.aiResponse
+                    .replace(/### (.*?)(\n|$)/g, '<h3 class="text-xl font-black text-slate-900 mt-8 mb-4 pb-2 border-b">$1</h3>')
+                    .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900">$1</strong>')
+                    .replace(/\n/g, '<br>');
                 
                 return `
                     <div class="max-w-3xl mx-auto p-6 md:p-8">
@@ -1388,28 +1030,28 @@
                                             <div class="text-lg font-black">${this.state.activeTab.replace('_', ' ').toUpperCase()}</div>
                                         </div>
                                     </div>
-                                    <button data-action="copy" 
+                                    <button id="copy-btn" 
                                             class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-lg flex items-center justify-center transition-colors">
                                         ${ICONS.copy.replace('text-slate-500', 'text-white')}
                                     </button>
                                 </div>
                             </div>
                             
-                            <div class="p-6 md:p-8 markdown-content text-slate-700 leading-relaxed">
-                                ${formatResponse(this.state.aiResponse)}
+                            <div class="p-6 md:p-8 text-slate-700 leading-relaxed">
+                                ${formattedResponse}
                             </div>
                             
                             <div class="border-t border-slate-200 p-4 bg-slate-50">
                                 <div class="flex items-center justify-between">
                                     <div class="text-sm text-slate-600">
-                                        คำแนะนำนี้ปรับให้เหมาะกับพื้นที่: <span class="font-bold">${this._escapeHtml(this.state.userProfile.zone)}</span>
+                                        คำแนะนำนี้ปรับให้เหมาะกับพื้นที่: <span class="font-bold">${this.state.userProfile.zone}</span>
                                     </div>
                                     <div class="flex gap-2">
-                                        <button data-action="feedback-up" 
+                                        <button id="feedback-up-btn" 
                                                 class="w-10 h-10 rounded-full flex items-center justify-center border ${this.state.feedback === 'up' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-400 border-slate-300 hover:border-emerald-500 hover:text-emerald-500'}">
                                             ${ICONS.thumbsUp}
                                         </button>
-                                        <button data-action="feedback-down" 
+                                        <button id="feedback-down-btn" 
                                                 class="w-10 h-10 rounded-full flex items-center justify-center border ${this.state.feedback === 'down' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white text-slate-400 border-slate-300 hover:border-rose-500 hover:text-rose-500'}">
                                             ${ICONS.thumbsDown}
                                         </button>
@@ -1422,7 +1064,7 @@
                             <div class="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600">
                                 <div class="flex items-center gap-2">
                                     ${ICONS.alert}
-                                    <strong>หมายเหตุ:</strong> ${this._escapeHtml(this.state.error)}
+                                    <strong>หมายเหตุ:</strong> ${this.state.error}
                                 </div>
                             </div>
                         ` : ''}
@@ -1430,39 +1072,184 @@
                 `;
             }
             
-            // ========== AI GENERATION WITH RACE CONDITION PROTECTION ==========
+            renderError(error) {
+                const root = document.getElementById('root');
+                if (!root) return;
+                
+                root.innerHTML = `
+                    <div class="min-h-screen flex items-center justify-center bg-red-50 p-4">
+                        <div class="bg-white p-8 rounded-2xl shadow-lg max-w-md">
+                            <h1 class="text-2xl font-bold text-red-600 mb-4">เกิดข้อผิดพลาด</h1>
+                            <p class="text-slate-600 mb-2">ระบบไม่สามารถแสดงผลได้:</p>
+                            <pre class="text-xs text-slate-500 bg-slate-100 p-3 rounded mb-4 overflow-auto max-h-40">${error.message}</pre>
+                            <div class="flex gap-2">
+                                <button onclick="location.reload()" class="flex-1 bg-sky-600 text-white py-3 rounded-lg font-bold">
+                                    รีเฟรชหน้าเว็บ
+                                </button>
+                                <button onclick="app.logout()" class="px-4 py-3 bg-slate-200 text-slate-700 rounded-lg font-medium">
+                                    ออกจากระบบ
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
             
-            async handleGenerate() {
-                // Prevent multiple concurrent requests
-                if (this.state.loading) {
-                    console.log('Request already in progress');
-                    return;
+            // ========== EVENT LISTENERS ==========
+            
+            attachEventListeners() {
+                // Passcode submit
+                const passcodeBtn = document.getElementById('submit-passcode-btn');
+                if (passcodeBtn) {
+                    passcodeBtn.onclick = () => this.submitPasscode();
                 }
                 
+                // Passcode input Enter key
+                const passcodeInput = document.getElementById('passcode-input');
+                if (passcodeInput) {
+                    passcodeInput.onkeyup = (e) => {
+                        if (e.key === 'Enter') this.submitPasscode();
+                    };
+                }
+                
+                // Setup page buttons
+                const startBtn = document.getElementById('start-system-btn');
+                if (startBtn) {
+                    startBtn.onclick = () => {
+                        if (this.state.userProfile.zone) {
+                            this.setState({ isSetup: true });
+                        } else {
+                            alert('กรุณาเลือกโซนให้ครบ');
+                        }
+                    };
+                }
+                
+                // RH and Zone select
+                const rhSelect = document.getElementById('rh-select');
+                if (rhSelect) {
+                    rhSelect.onchange = (e) => {
+                        const rh = e.target.value;
+                        this.setState({ 
+                            userProfile: { ...this.state.userProfile, rh, zone: "" } 
+                        });
+                    };
+                }
+                
+                const zoneSelect = document.getElementById('zone-select');
+                if (zoneSelect) {
+                    zoneSelect.onchange = (e) => {
+                        const zone = e.target.value;
+                        this.setState({ 
+                            userProfile: { ...this.state.userProfile, zone } 
+                        });
+                    };
+                }
+                
+                // Logout buttons
+                const logoutBtn = document.getElementById('logout-btn');
+                if (logoutBtn) logoutBtn.onclick = () => this.logout();
+                
+                const logoutMainBtn = document.getElementById('logout-main-btn');
+                if (logoutMainBtn) logoutMainBtn.onclick = () => this.logout();
+                
+                // Non-AI button
+                const nonAIBtn = document.getElementById('non-ai-btn');
+                if (nonAIBtn) nonAIBtn.onclick = () => this.showNonAIPopup();
+                
+                // Tab switching
+                document.querySelectorAll('[data-tab-id]').forEach(button => {
+                    button.onclick = (e) => {
+                        const tabId = e.currentTarget.dataset.tabId;
+                        if (tabId) {
+                            this.setState({ activeTab: tabId });
+                        }
+                    };
+                });
+                
+                // Change zone button
+                const changeZoneBtn = document.getElementById('change-zone-btn');
+                if (changeZoneBtn) changeZoneBtn.onclick = () => this.setState({ isSetup: false });
+                
+                // Generate button
+                const generateBtn = document.getElementById('generate-ai-btn');
+                if (generateBtn) {
+                    generateBtn.onclick = () => this.handleGenerate();
+                }
+                
+                // Form inputs
+                document.querySelectorAll('[data-tab][data-field]').forEach(element => {
+                    element.onchange = element.oninput = (e) => {
+                        const tab = e.target.dataset.tab;
+                        const field = e.target.dataset.field;
+                        const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+                        
+                        if (tab && field) {
+                            this.setState({
+                                forms: {
+                                    ...this.state.forms,
+                                    [tab]: {
+                                        ...this.state.forms[tab],
+                                        [field]: value
+                                    }
+                                }
+                            });
+                        }
+                    };
+                });
+                
+                // Copy button
+                const copyBtn = document.getElementById('copy-btn');
+                if (copyBtn) {
+                    copyBtn.onclick = () => {
+                        navigator.clipboard.writeText(this.state.aiResponse)
+                            .then(() => alert('คัดลอกแล้ว!'))
+                            .catch(() => alert('ไม่สามารถคัดลอกได้'));
+                    };
+                }
+                
+                // Feedback buttons
+                const feedbackUpBtn = document.getElementById('feedback-up-btn');
+                if (feedbackUpBtn) {
+                    feedbackUpBtn.onclick = () => this.setState({ feedback: 'up' });
+                }
+                
+                const feedbackDownBtn = document.getElementById('feedback-down-btn');
+                if (feedbackDownBtn) {
+                    feedbackDownBtn.onclick = () => this.setState({ feedback: 'down' });
+                }
+                
+                // Non-AI popup buttons
+                const cancelNonAIBtn = document.getElementById('cancel-non-ai');
+                if (cancelNonAIBtn) {
+                    cancelNonAIBtn.onclick = () => this.hideNonAIPopup();
+                }
+                
+                const confirmNonAIBtn = document.getElementById('confirm-non-ai');
+                if (confirmNonAIBtn) {
+                    confirmNonAIBtn.onclick = () => this.goToNonAISystem();
+                }
+            }
+            
+            // ========== AI GENERATION ==========
+            
+            async handleGenerate() {
+                if (this.state.loading) return;
+                
+                this.setState({ loading: true, aiResponse: "", error: "" });
+                
                 try {
-                    // Use AbortController for request cancellation
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 30000);
-                    
-                    this.setState({ 
-                        loading: true, 
-                        aiResponse: "", 
-                        error: "",
-                        currentController: controller
-                    });
-                    
                     // Get API key
-                    const apiKey = await this.getApiKey();
-                    const prompt = this.getEnhancedPrompt();
+                    const apiKey = await getRotatedApiKey();
                     
                     if (!apiKey) {
                         // Demo mode
-                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        await new Promise(resolve => setTimeout(resolve, 1500));
                         this.showMockResponse();
                         return;
                     }
                     
-                    // Make API request
+                    const prompt = this.getEnhancedPrompt();
+                    
                     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -1476,11 +1263,8 @@
                                 topP: 0.95,
                                 maxOutputTokens: 2048,
                             }
-                        }),
-                        signal: controller.signal
+                        })
                     });
-                    
-                    clearTimeout(timeoutId);
                     
                     if (!response.ok) {
                         throw new Error(`API Error: ${response.status}`);
@@ -1497,22 +1281,11 @@
                     
                 } catch (err) {
                     console.error("Error:", err);
-                    
-                    if (err.name === 'AbortError') {
-                        this.setState({ 
-                            error: "Request timeout - โปรดลองอีกครั้ง", 
-                            loading: false 
-                        });
-                    } else {
-                        this.setState({ 
-                            error: err.message + " - กำลังใช้โหมดทดลอง", 
-                            loading: false 
-                        });
-                        this.showMockResponse();
-                    }
-                } finally {
-                    // Cleanup
-                    this.setState({ currentController: null });
+                    this.setState({ 
+                        error: err.message + " - กำลังใช้โหมดทดลอง", 
+                        loading: false 
+                    });
+                    this.showMockResponse();
                 }
             }
             
@@ -1543,28 +1316,78 @@
             }
             
             getEnhancedPrompt() {
-                // ... existing prompt generation logic ...
-                // (รวมโค้ดเดิมแต่ตัดเพื่อความกระชับ)
-                return "";
-            }
-            
-            // ========== CLEANUP AND LIFECYCLE ==========
-            
-            _cleanup() {
-                // Clear timeouts
-                clearTimeout(this.renderTimeout);
+                const tab = this.state.activeTab;
+                const f = this.state.forms[tab];
+                const rh = RH_DATA[this.state.userProfile.rh] || {};
+                const zone = this.state.userProfile.zone;
                 
-                // Remove event listeners
-                this._removeEventListeners();
-                
-                // Abort ongoing requests
-                if (this.state.currentController) {
-                    this.state.currentController.abort();
+                if (tab === "ice_breaking") {
+                    return `คุณเป็นผู้เชี่ยวชาญการขายประกันชีวิตในพื้นที่ ${zone} (${rh.name})
+ข้อมูลลูกค้า:
+- ธุรกรรม: ${f.transaction}
+- สิ่งสังเกต: ${f.insight}
+- จริต: ${f.disc}
+- ระดับความสัมพันธ์: ${f.relationship_level}
+- ความสนใจร่วม: ${f.common_interest}
+
+ข้อมูลพื้นที่ ${zone}:
+- ลักษณะสังคม: ${rh.dynamics}
+- น้ำเสียงที่ได้ผล: ${rh.tone}
+- คอนเท็กซ์: ${rh.context}
+
+กรุณาสร้างบทสนทนาเปิดใจ (Ice Breaking) ที่:
+1. เชื่อมโยงจากธุรกรรมที่ลูกค้ามาทำสู่ความกังวลลึกๆ
+2. ใช้คำพูดที่เหมาะกับจริต ${f.disc}
+3. สอดแทรกข้อมูลเฉพาะพื้นที่ ${zone}
+4. สร้างคำถามทรงพลัง 1-2 คำถามเพื่อสำรวจความต้องการ
+5. ใช้ภาษาไทยแบบเป็นกันเองแต่เชี่ยวชาญ`;
                 }
                 
-                // Clear any other timeouts/intervals
-                this.pendingStateUpdates = [];
+                if (tab === "needs_analysis") {
+                    return `คุณเป็นที่ปรึกษาการเงินในพื้นที่ ${zone} (${rh.name})
+ข้อมูลลูกค้า:
+- รายได้ต่อปี: ${f.income} บาท
+- ภาษี: ${f.tax_bracket}
+- สวัสดิการ: ${f.welfare}
+- ความกังวลหลัก: ${f.top_concern}
+- คนในอุปการะ: ${f.dependents} คน
+- จำนวนปีที่ต้องดูแล: ${f.years} ปี
+- สินทรัพย์: ${f.assets} บาท
+- หนี้สิน: ${f.debt} บาท
+
+ข้อมูลพื้นที่ ${zone}:
+- ลักษณะสังคม: ${rh.dynamics}
+- คีย์เวิร์ดสำคัญ: ${rh.keywords}
+- โทนการสื่อสาร: ${rh.tone}
+
+กรุณาวิเคราะห์ Human Economic Value และสร้างแผนการคุ้มครองที่เหมาะสม:
+1. คำนวณมูลค่าคน (Human Economic Value)
+2. ระบุช่องว่างความคุ้มครอง (Protection Gap)
+3. เสนอแผนประกันที่เหมาะกับพื้นที่ ${zone}
+4. อธิบายด้วยภาษาง่ายๆ
+5. เน้นประโยชน์ด้านภาษีและผลตอบแทน`;
+                }
+                
+                return "โปรดกรอกข้อมูลในฟอร์มเพื่อรับคำแนะนำจาก AI";
             }
+            
+            // ========== NON-AI POPUP ==========
+            
+            showNonAIPopup() {
+                const popup = document.getElementById('non-ai-popup');
+                if (popup) popup.classList.remove('hidden');
+            }
+            
+            hideNonAIPopup() {
+                const popup = document.getElementById('non-ai-popup');
+                if (popup) popup.classList.add('hidden');
+            }
+            
+            goToNonAISystem() {
+                window.location.href = "https://pltpdttb-jpg.github.io/sales-assist/";
+            }
+            
+            // ========== INITIALIZATION ==========
             
             init() {
                 // Load saved state
@@ -1572,29 +1395,21 @@
                     const savedState = localStorage.getItem('mama_v2_state');
                     if (savedState) {
                         const parsed = JSON.parse(savedState);
-                        this.setState({ 
-                            ...parsed,
-                            currentApiKey: parsed.currentApiKey || ""
-                        });
+                        this.state = { ...this.state, ...parsed };
                     }
                 } catch (e) {
                     console.log("No saved state found");
                 }
-                
-                // Handle page unload
-                window.addEventListener('beforeunload', () => {
-                    this._cleanup();
-                });
                 
                 // Initial render
                 this.render();
             }
         }
 
-        // Initialize the app when DOM is ready
+        // Initialize app when DOM is ready
         document.addEventListener('DOMContentLoaded', function() {
             window.app = new MAMAV2Enhanced();
-            console.log("MAMA V.2 Enhanced App with optimizations loaded!");
+            console.log("MAMA V.2 Enhanced App loaded successfully!");
         });
     </script>
 </body>
